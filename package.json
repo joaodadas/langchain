@@ -1,0 +1,29 @@
+{
+  "name": "langchain",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joaodadas/langchain.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/joaodadas/langchain/issues"
+  },
+  "homepage": "https://github.com/joaodadas/langchain#readme",
+  "description": "",
+  "dependencies": {
+    "@langchain/core": "^0.3.55",
+    "@langchain/openai": "^0.5.10",
+    "body-parser": "^2.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "langchain": "^0.3.25"
+  }
+}
