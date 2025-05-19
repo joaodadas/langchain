@@ -30,14 +30,14 @@ const model = new ChatOpenAI({
   callbackManager,
 });
 
-// Carrega e vetorializa qualquer base textual
-async function loadRetrieverFromFile(filePath) {
-  const content = await fs.readFile(filePath, 'utf8');
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 100,
-  });
-  const docs = await splitter.createDocuments([content]);
+// Fonte 1: JSON tratado (pergunta e resposta)
+async function retrieverFromQAJson(path) {
+  const raw = await fs.readFile(path, 'utf8');
+  const data = JSON.parse(raw);
+  const docs = data.map(
+    ({ question, answer }) =>
+      new Document({ pageContent: `${question}\n${answer}` })
+  );
   const vectorStore = await MemoryVectorStore.fromDocuments(
     docs,
     new OpenAIEmbeddings()
@@ -45,60 +45,61 @@ async function loadRetrieverFromFile(filePath) {
   return vectorStore.asRetriever();
 }
 
-app.post('/processar', async (req, res) => {
+// Fonte 2: Texto contínuo (OG.txt)
+async function retrieverFromTxtFile(path) {
+  const raw = await fs.readFile(path, 'utf8');
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 100,
+  });
+  const docs = await splitter.createDocuments([raw]);
+  const vectorStore = await MemoryVectorStore.fromDocuments(
+    docs,
+    new OpenAIEmbeddings()
+  );
+  return vectorStore.asRetriever();
+}
+
+// Rota única
+app.post('/chat', async (req, res) => {
+  console.log('Requisição recebida:', req.body);
   try {
-    const { prompt } = req.body;
-    const fonte = req.query.fonte;
+    const { prompt, fonte } = req.body;
+    if (!prompt || !fonte)
+      return res.status(400).json({ error: 'prompt e fonte são obrigatórios' });
 
-    if (!prompt || !fonte) {
-      return res
-        .status(400)
-        .json({ error: 'Prompt e fonte são obrigatórios.' });
-    }
-
-    // Determina o arquivo com base na fonte escolhida
-    const filePath =
-      fonte === '1'
-        ? './data/tratado/fileT.json'
-        : fonte === '2'
-        ? './data/bruto/fileB.txt'
-        : null;
-
-    if (!filePath) {
-      return res
-        .status(400)
-        .json({ error: 'Fonte inválida. Use ?fonte=1 ou ?fonte=2.' });
+    let retriever;
+    if (fonte === '1') {
+      retriever = await retrieverFromQAJson('./data/tratado/fileT.json');
+    } else if (fonte === '2') {
+      retriever = await retrieverFromTxtFile('./data/bruto/fileB.txt');
+    } else {
+      return res.status(400).json({ error: 'fonte inválida: use "1" ou "2"' });
     }
 
     lastUsage = null;
-
-    const retriever = await loadRetrieverFromFile(filePath);
     const chain = RetrievalQAChain.fromLLM(model, retriever);
     const result = await chain.call({ query: prompt });
 
-    let usage = null;
-    if (lastUsage) {
-      const { promptTokens, completionTokens, totalTokens } = lastUsage;
-      const inputCost = (promptTokens * 0.01) / 1000;
-      const outputCost = (completionTokens * 0.03) / 1000;
-      const totalCost = inputCost + outputCost;
-      usage = {
-        promptTokens,
-        completionTokens,
-        totalTokens,
-        estimatedCostUSD: totalCost.toFixed(6),
-      };
-    }
+    const tokens = lastUsage
+      ? {
+          prompt: lastUsage.promptTokens,
+          resposta: lastUsage.completionTokens,
+          total: lastUsage.totalTokens,
+        }
+      : null;
 
-    res.json({
-      prompt,
-      fonte,
-      response: result.text,
-      usage,
-    });
+    const custo = lastUsage
+      ? (
+          (lastUsage.promptTokens * 0.01 + lastUsage.completionTokens * 0.03) /
+          1000
+        ).toFixed(6)
+      : null;
+
+    res.json({ resposta: result.text, tokens, custo: Number(custo) });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Erro interno.' });
+    res.status(500).json({ error: 'Erro interno ao processar o chat.' });
   }
 });
 
