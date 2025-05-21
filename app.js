@@ -16,6 +16,24 @@ const app = express();
 const PORT = 3000;
 app.use(bodyParser.json());
 
+// Monitoramento de memória e CPU
+setInterval(() => {
+  const used = process.memoryUsage();
+  const cpu = process.cpuUsage();
+  console.log('📈 Monitoramento a cada 10s:');
+  console.log(
+    `🧠 Memória: heapUsed ${(used.heapUsed / 1024 / 1024).toFixed(2)} MB`
+  );
+  console.log(`🧠 Memória RSS: ${(used.rss / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`🧠 External: ${(used.external / 1024 / 1024).toFixed(2)} MB`);
+  console.log(
+    `⚙️ CPU user: ${(cpu.user / 1000).toFixed(2)} ms | system: ${(
+      cpu.system / 1000
+    ).toFixed(2)} ms`
+  );
+  console.log('----------------------------------------');
+}, 10000);
+
 // Callback que rastreia tokens e custo
 let lastUsage = null;
 const callbackManager = CallbackManager.fromHandlers({
